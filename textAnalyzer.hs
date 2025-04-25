@@ -40,15 +40,15 @@ matchingNonUserName s = filter (not . findUserName) (separateWords s)
 type LineAnalysis = (String, [String], Int)
 
 -- Analyze each line in the text
+analyzeLine :: String -> LineAnalysis
+analyzeLine line = 
+    let usernames = matchingUserName line
+        nonUserNameWords = matchingNonUserName line
+        nonUserNameCount = length nonUserNameWords
+    in (line, usernames, nonUserNameCount)
+
 analyzeText :: String -> [LineAnalysis]
 analyzeText text = map analyzeLine (separateLines text)
-  where
-    analyzeLine :: String -> LineAnalysis
-    analyzeLine line = 
-      let usernames = matchingUserName line
-          nonUserNameWords = matchingNonUserName line
-          nonUserNameCount = length nonUserNameWords
-      in (line, usernames, nonUserNameCount)
 
 -- Pretty print the analysis results
 printTextAnalysis :: [LineAnalysis] -> IO ()
