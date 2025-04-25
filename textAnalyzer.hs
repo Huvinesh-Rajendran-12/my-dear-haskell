@@ -1,71 +1,44 @@
-import Data.List (isPrefixOf, isSuffixOf)
+import Data.List (isPrefixOf, isSuffixOf, sortBy)
+import Data.Map (Map, empty, insertWith, toList)
+import Data.Ord (comparing)
+import Data.Maybe (fromMaybe)
 
-isSpace' :: Char -> Bool
-isSpace' char = char == ' '
+-- Function to extract the username from a line, if present
+extractUsername :: String -> Maybe String
+extractUsername line =
+  case words line of
+    (word : _) | "<" `isPrefixOf` word && ">" `isSuffixOf` word -> Just word
+    _ -> Nothing
 
-text :: String
-text = "<user1> Howdy, how are ya doing ?\n<user2> I am doing great."
+-- Function to extract the words (excluding the username) from a line
+extractWords :: String -> [String]
+extractWords line =
+  case words line of
+    (word : rest) | "<" `isPrefixOf` word && ">" `isSuffixOf` word -> rest
+    allWords -> allWords
 
-spacesInText :: [Char] -> [Char]
-spacesInText = filter isSpace'
-
-countSpaces :: String -> Int
-countSpaces s = length $ filter isSpace' s
-
-separateLines :: String -> [String]
-separateLines = lines
-
-separateWords :: String -> [String]
-separateWords = words
-
-startwithBrackets :: String -> Bool
-startwithBrackets word = "<" `isPrefixOf` word
-
-endswithBrackets :: String -> Bool
-endswithBrackets word = ">" `isSuffixOf` word
-
-hasContentBetweenBrackets :: String -> Bool
-hasContentBetweenBrackets word = length word >= 4
-
-findUserName :: String -> Bool
-findUserName word = startwithBrackets word && endswithBrackets word && hasContentBetweenBrackets word
-
-matchingUserName :: String -> [String]
-matchingUserName s = filter findUserName (separateWords s)
-
-matchingNonUserName :: String -> [String]
-matchingNonUserName s = filter (not . findUserName) (separateWords s)
-
--- Type definition for our result: (line, usernames, count of non-username words)
-type LineAnalysis = (String, [String], Int)
-
--- Analyze each line in the text
-analyzeLine :: String -> LineAnalysis
-analyzeLine line = 
-    let usernames = matchingUserName line
-        nonUserNameWords = matchingNonUserName line
-        nonUserNameCount = length nonUserNameWords
-    in (line, usernames, nonUserNameCount)
-
-analyzeText :: String -> [LineAnalysis]
-analyzeText text = map analyzeLine (separateLines text)
-
--- Pretty print the analysis results
-printTextAnalysis :: [LineAnalysis] -> IO ()
-printTextAnalysis = mapM_ printLineAnalysis
+-- Analyzes the text to count words per attributed username
+analyzeTextSimilar :: String -> [String]
+analyzeTextSimilar s =
+  let textLines = lines s  -- Renamed to avoid shadowing built-in function
+      (wordCounts, _) = foldl processLine (empty, Nothing) textLines
+      sortedWordCounts = sortBy (comparing (negate . snd)) (toList wordCounts)
+  in map fst sortedWordCounts
   where
-    printLineAnalysis :: LineAnalysis -> IO ()
-    printLineAnalysis (line, usernames, count) = do
-      putStrLn $ "Line: " ++ line
-      putStrLn $ "  Usernames found: " ++ show usernames
-      putStrLn $ "  Non-username word count: " ++ show count
-      putStrLn ""
+    processLine :: (Map String Int, Maybe String) -> String -> (Map String Int, Maybe String)
+    processLine (currentCounts, currentUsername) line =
+      let newUsername = extractUsername line
+          attributedUsername = case newUsername of
+                                Just name -> Just name
+                                Nothing -> currentUsername
+          wordsOnLine = extractWords line
+          wordCount = length wordsOnLine
+          updatedCounts = case attributedUsername of
+                            Just username -> insertWith (+) username wordCount currentCounts
+                            Nothing -> currentCounts  -- Ignore lines with no attributed username
+      in (updatedCounts, attributedUsername)
 
--- Example function to run the analysis
-runTextAnalysis :: String -> IO ()
-runTextAnalysis text = printTextAnalysis (analyzeText text)
-
-
-
-
-
+main :: IO ()
+main = do
+  let inputText = "<user1> this is some chat words\n<user2> the sky is blue\nThis line is still attributed to the user above haha\n<user1> more chat from me! 38gad81"
+  print (analyzeTextSimilar inputText)
